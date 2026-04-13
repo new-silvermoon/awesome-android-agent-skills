@@ -72,6 +72,7 @@ These skills are categorized into domains in `.github/skills/` to provide specia
 
 ### Build & Tooling
 *   **[Gradle Build Logic](.github/skills/build_and_tooling/android-gradle-logic/SKILL.md)** - Setup Convention Plugins, Version Catalogs, and Composite Builds.
+- [CCHub](https://github.com/Moresl/cchub) - A desktop control panel for the Claude Code / Codex / Gemini CLI ecosystem. Manage MCP servers, config profiles, agent skills, CLAUDE.md, hooks, and workflow templates from a single Tauri app (Windows / macOS / Linux).
 
 ## Setup in Your Project
 
