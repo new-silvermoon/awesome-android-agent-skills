@@ -107,7 +107,9 @@ To add your own skill:
 1.  Create a new folder in `.github/skills/` (e.g., `my-custom-skill`).
 2.  Add a `SKILL.md` file with the required frontmatter:
     ```markdown
-    ---
+    - **[Context Kit](https://github.com/JDDavenport/context-kit)** — Personal Context Artifacts for Claude Code: 4 structured Markdown templates + 5 skills (crm-everything, open-loops, watchers, morning-briefing, session-digest). Start every session context-full, not context-zero. MIT, one-command install.
+
+---
     name: my-custom-skill
     description: Description of what this skill does
     ---
