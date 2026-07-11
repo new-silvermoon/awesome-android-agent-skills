@@ -1,30 +1,35 @@
 ---
-name: compose-navigation
-description: Implement navigation in Jetpack Compose using Navigation Compose. Use when asked to set up navigation, pass arguments between screens, handle deep links, or structure multi-screen apps.
+name: navigation3
+description: Implement navigation in Jetpack Compose using Navigation 3. Use when asked to build state-driven navigation, manage back stacks, scope ViewModels, implement adaptive layouts, or migrate from Navigation Compose.
 ---
 
-# Compose Navigation
+# Navigation 3
 
 ## Overview
 
-Implement type-safe navigation in Jetpack Compose applications using the Navigation Compose library. This skill covers NavHost setup, argument passing, deep links, nested graphs, adaptive navigation, and testing.
+Implement state-driven navigation in Jetpack Compose using Navigation 3. Unlike Navigation Compose, Navigation 3 models navigation as application state rather than through a `NavController`. This skill covers navigation keys, back stack management, ViewModel scoping, entry decorators, adaptive layouts, deep links, animations, state restoration, and testing.
 
 ## Setup
 
-Add the Navigation Compose dependency:
+Add the Navigation 3 dependencies:
 
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("androidx.navigation:navigation-compose:2.8.5")
-    
-    // For type-safe navigation (recommended)
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+
+    implementation("androidx.navigation3:navigation3-runtime:1.0.0-alpha08")
+    implementation("androidx.navigation3:navigation3-ui:1.0.0-alpha08")
+
+    // Lifecycle integration
+    implementation("androidx.lifecycle:lifecycle-viewmodel-navigation3:2.9.2")
+
+    // Serialization
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
 }
 
 // Enable serialization plugin
 plugins {
-    kotlin("plugin.serialization") version "2.0.21"
+    kotlin("plugin.serialization") version "2.2.0"
 }
 ```
 
@@ -32,70 +37,92 @@ plugins {
 
 ## Core Concepts
 
-### 1. Define Routes (Type-Safe)
+### 1. Define Navigation Keys
 
-Use `@Serializable` data classes/objects for type-safe routes:
+Navigation destinations are represented by immutable serializable objects.
 
 ```kotlin
 import kotlinx.serialization.Serializable
 
-// Simple screen (no arguments)
 @Serializable
-object Home
+data object Home
 
-// Screen with required argument
 @Serializable
-data class Profile(val userId: String)
+data class Profile(
+    val userId: String
+)
 
-// Screen with optional argument
 @Serializable
-data class Settings(val section: String? = null)
+data class Product(
+    val productId: String,
+    val showReviews: Boolean = false
+)
 
-// Screen with multiple arguments
 @Serializable
-data class ProductDetail(val productId: String, val showReviews: Boolean = false)
+data object Settings
 ```
 
-### 2. Create NavController
+Keys become your navigation state.
+
+---
+
+### 2. Create the Back Stack
+
+Navigation 3 replaces `NavController` with a mutable state back stack.
 
 ```kotlin
 @Composable
 fun MyApp() {
-    val navController = rememberNavController()
-    
-    AppNavHost(navController = navController)
+
+    val backStack = remember {
+        mutableStateListOf<Any>(Home)
+    }
+
+    AppNavDisplay(backStack)
 }
 ```
 
-### 3. Create NavHost
+---
+
+### 3. Create NavDisplay
 
 ```kotlin
 @Composable
-fun AppNavHost(
-    navController: NavHostController,
-    modifier: Modifier = Modifier
+fun AppNavDisplay(
+    backStack: SnapshotStateList<Any>
 ) {
-    NavHost(
-        navController = navController,
-        startDestination = Home,
-        modifier = modifier
-    ) {
-        composable<Home> {
-            HomeScreen(
-                onNavigateToProfile = { userId ->
-                    navController.navigate(Profile(userId))
-                }
-            )
+
+    NavDisplay(
+        backStack = backStack,
+        onBack = {
+            if (backStack.size > 1) {
+                backStack.removeLast()
+            }
         }
-        
-        composable<Profile> { backStackEntry ->
-            val profile: Profile = backStackEntry.toRoute()
-            ProfileScreen(userId = profile.userId)
-        }
-        
-        composable<Settings> { backStackEntry ->
-            val settings: Settings = backStackEntry.toRoute()
-            SettingsScreen(section = settings.section)
+    ) { key ->
+
+        when (key) {
+
+            Home ->
+                HomeScreen(
+                    onProfileClick = {
+                        backStack += Profile(it)
+                    }
+                )
+
+            is Profile ->
+                ProfileScreen(
+                    userId = key.userId
+                )
+
+            is Product ->
+                ProductScreen(
+                    productId = key.productId,
+                    showReviews = key.showReviews
+                )
+
+            Settings ->
+                SettingsScreen()
         }
     }
 }
@@ -105,78 +132,36 @@ fun AppNavHost(
 
 ## Navigation Patterns
 
-### Basic Navigation
+### Navigate Forward
 
 ```kotlin
-// Navigate forward
-navController.navigate(Profile(userId = "user123"))
-
-// Navigate and pop current screen
-navController.navigate(Home) {
-    popUpTo<Home> { inclusive = true }
-}
-
-// Navigate back
-navController.popBackStack()
-
-// Navigate back to specific destination
-navController.popBackStack<Home>(inclusive = false)
+backStack += Profile("user123")
 ```
 
-### Navigate with Options
+### Navigate Back
 
 ```kotlin
-navController.navigate(Profile(userId = "user123")) {
-    // Pop up to destination (clear back stack)
-    popUpTo<Home> {
-        inclusive = false  // Keep Home in stack
-        saveState = true   // Save state of popped screens
-    }
-    
-    // Avoid multiple copies of same destination
-    launchSingleTop = true
-    
-    // Restore state when navigating to this destination
-    restoreState = true
-}
+backStack.removeLast()
 ```
 
-### Bottom Navigation Pattern
+### Replace Current Screen
 
 ```kotlin
-@Composable
-fun MainScreen() {
-    val navController = rememberNavController()
-    
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
-                
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                    label = { Text("Home") },
-                    selected = currentDestination?.hasRoute<Home>() == true,
-                    onClick = {
-                        navController.navigate(Home) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                )
-                // Add more items...
-            }
-        }
-    ) { innerPadding ->
-        AppNavHost(
-            navController = navController,
-            modifier = Modifier.padding(innerPadding)
-        )
-    }
+backStack[backStack.lastIndex] = Home
+```
+
+### Clear Back Stack
+
+```kotlin
+backStack.clear()
+backStack += Home
+```
+
+### Pop To Root
+
+```kotlin
+while (backStack.size > 1) {
+    backStack.removeLast()
 }
 ```
 
@@ -184,212 +169,259 @@ fun MainScreen() {
 
 ## Argument Handling
 
-### Retrieve Arguments in Composable
+### Retrieve Arguments
+
+Arguments already exist inside the navigation key.
 
 ```kotlin
-composable<Profile> { backStackEntry ->
-    val profile: Profile = backStackEntry.toRoute()
-    ProfileScreen(userId = profile.userId)
-}
-```
+when (val key = currentKey) {
 
-### Retrieve Arguments in ViewModel
+    is Profile -> {
+        ProfileScreen(
+            userId = key.userId
+        )
+    }
 
-```kotlin
-@HiltViewModel
-class ProfileViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
-    private val userRepository: UserRepository
-) : ViewModel() {
-    
-    private val profile: Profile = savedStateHandle.toRoute<Profile>()
-    
-    val user: StateFlow<User?> = userRepository
-        .getUser(profile.userId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-}
-```
-
-### Complex Data: Pass IDs, Not Objects
-
-```kotlin
-// CORRECT: Pass only the ID
-navController.navigate(Profile(userId = "user123"))
-
-// In ViewModel, fetch from repository
-class ProfileViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
-    private val profile = savedStateHandle.toRoute<Profile>()
-    val user = userRepository.getUser(profile.userId)
-}
-
-// INCORRECT: Don't pass complex objects
-// navController.navigate(Profile(user = complexUserObject)) // BAD!
-```
-
----
-
-## Deep Links
-
-### Define Deep Links
-
-```kotlin
-@Serializable
-data class Profile(val userId: String)
-
-composable<Profile>(
-    deepLinks = listOf(
-        navDeepLink<Profile>(basePath = "https://example.com/profile")
-    )
-) { backStackEntry ->
-    val profile: Profile = backStackEntry.toRoute()
-    ProfileScreen(userId = profile.userId)
-}
-```
-
-### Manifest Configuration
-
-```xml
-<activity android:name=".MainActivity">
-    <intent-filter>
-        <action android:name="android.intent.action.VIEW" />
-        <category android:name="android.intent.category.DEFAULT" />
-        <category android:name="android.intent.category.BROWSABLE" />
-        <data android:scheme="https" android:host="example.com" />
-    </intent-filter>
-</activity>
-```
-
-### Create PendingIntent for Notifications
-
-```kotlin
-val context = LocalContext.current
-val deepLinkIntent = Intent(
-    Intent.ACTION_VIEW,
-    "https://example.com/profile/user123".toUri(),
-    context,
-    MainActivity::class.java
-)
-
-val pendingIntent = TaskStackBuilder.create(context).run {
-    addNextIntentWithParentStack(deepLinkIntent)
-    getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-}
-```
-
----
-
-## Nested Navigation
-
-### Create Nested Graph
-
-```kotlin
-NavHost(navController = navController, startDestination = Home) {
-    composable<Home> { HomeScreen() }
-    
-    // Nested graph for authentication flow
-    navigation<AuthGraph>(startDestination = Login) {
-        composable<Login> {
-            LoginScreen(
-                onLoginSuccess = {
-                    navController.navigate(Home) {
-                        popUpTo<AuthGraph> { inclusive = true }
-                    }
-                }
-            )
-        }
-        composable<Register> { RegisterScreen() }
-        composable<ForgotPassword> { ForgotPasswordScreen() }
+    is Product -> {
+        ProductScreen(
+            productId = key.productId
+        )
     }
 }
-
-// Route definitions
-@Serializable object AuthGraph
-@Serializable object Login
-@Serializable object Register
-@Serializable object ForgotPassword
 ```
+
+### Pass IDs, Not Objects
+
+```kotlin
+// CORRECT
+backStack += Profile(user.id)
+
+// Fetch object inside ViewModel
+class ProfileViewModel(
+    savedStateHandle: SavedStateHandle,
+    repository: UserRepository
+) : ViewModel() {
+
+    val profile = savedStateHandle.toRoute<Profile>()
+
+    val user =
+        repository.getUser(profile.userId)
+}
+```
+
+```kotlin
+// INCORRECT
+
+backStack += User(...)
+backStack += ProductRepository(...)
+backStack += ProductViewModel(...)
+```
+
+---
+
+## ViewModel Integration
+
+Navigation 3 scopes ViewModels using entry decorators.
+
+```kotlin
+NavDisplay(
+
+    backStack = backStack,
+
+    entryDecorators = listOf(
+
+        rememberSceneSetupNavEntryDecorator(),
+
+        rememberSavedStateNavEntryDecorator(),
+
+        rememberViewModelStoreNavEntryDecorator()
+    )
+
+) { key ->
+
+    // destinations
+}
+```
+
+### ViewModel Example
+
+```kotlin
+class ProfileViewModel(
+    savedStateHandle: SavedStateHandle
+) : ViewModel() {
+
+    val profile =
+        savedStateHandle.toRoute<Profile>()
+}
+```
+
+---
+
+## Entry Decorators
+
+Navigation 3 uses decorators to attach lifecycle functionality.
+
+### Scene Setup
+
+```kotlin
+rememberSceneSetupNavEntryDecorator()
+```
+
+Creates the navigation scene for each entry.
+
+### Saved State
+
+```kotlin
+rememberSavedStateNavEntryDecorator()
+```
+
+Automatically restores destination state after process recreation.
+
+### ViewModel Store
+
+```kotlin
+rememberViewModelStoreNavEntryDecorator()
+```
+
+Scopes ViewModels to each navigation entry.
 
 ---
 
 ## Adaptive Navigation
 
-Use `NavigationSuiteScaffold` for responsive navigation (bottom bar on phones, rail on tablets):
+Navigation 3 integrates with Material Adaptive layouts.
 
 ```kotlin
-@Composable
-fun AdaptiveApp() {
-    val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = navBackStackEntry?.destination
-    
-    NavigationSuiteScaffold(
-        navigationSuiteItems = {
-            item(
-                icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                label = { Text("Home") },
-                selected = currentDestination?.hasRoute<Home>() == true,
-                onClick = { navController.navigate(Home) }
-            )
-            item(
-                icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                label = { Text("Settings") },
-                selected = currentDestination?.hasRoute<Settings>() == true,
-                onClick = { navController.navigate(Settings()) }
-            )
-        }
-    ) {
-        AppNavHost(navController = navController)
-    }
+NavDisplay(
+
+    backStack = backStack,
+
+    sceneStrategy = rememberListDetailSceneStrategy()
+
+)
+```
+
+Use adaptive scene strategies to automatically switch between:
+
+- Single pane (phones)
+- Two pane (tablets)
+- Foldables
+
+---
+
+## Deep Links
+
+Deep links should resolve into navigation keys.
+
+```kotlin
+fun handleDeepLink(uri: Uri) {
+
+    val userId =
+        uri.lastPathSegment ?: return
+
+    backStack += Profile(userId)
 }
 ```
+
+Avoid manually constructing route strings.
+
+---
+
+## Animations
+
+Navigation transitions are defined using scene transitions.
+
+```kotlin
+NavDisplay(
+
+    backStack = backStack,
+
+    transitionSpec = {
+
+        fadeIn() togetherWith fadeOut()
+
+    }
+)
+```
+
+Navigation 3 animation APIs may evolve while in alpha.
+
+---
+
+## State Restoration
+
+Navigation keys are serializable and automatically restored.
+
+```kotlin
+val backStack = rememberSaveable(
+    saver = navBackStackSaver()
+) {
+    mutableStateListOf(Home)
+}
+```
+
+Always ensure keys are serializable.
 
 ---
 
 ## Testing
 
-### Setup
+Navigation becomes simple because it is state-driven.
+
+### Example
 
 ```kotlin
-// build.gradle.kts
-androidTestImplementation("androidx.navigation:navigation-testing:2.8.5")
+@Test
+fun navigateToProfile() {
+
+    val backStack =
+        mutableStateListOf<Any>(Home)
+
+    backStack += Profile("123")
+
+    assertEquals(
+        Profile("123"),
+        backStack.last()
+    )
+}
 ```
 
-### Test Navigation
+Compose UI tests can verify screen rendering by inspecting the current back stack.
 
-```kotlin
-class NavigationTest {
-    @get:Rule
-    val composeTestRule = createComposeRule()
-    
-    private lateinit var navController: TestNavHostController
-    
-    @Before
-    fun setup() {
-        composeTestRule.setContent {
-            navController = TestNavHostController(LocalContext.current)
-            navController.navigatorProvider.addNavigator(ComposeNavigator())
-            AppNavHost(navController = navController)
-        }
-    }
-    
-    @Test
-    fun verifyStartDestination() {
-        composeTestRule
-            .onNodeWithText("Welcome")
-            .assertIsDisplayed()
-    }
-    
-    @Test
-    fun navigateToProfile_displaysProfileScreen() {
-        composeTestRule
-            .onNodeWithText("View Profile")
-            .performClick()
-        
-        assertTrue(
-            navController.currentBackStackEntry?.destination?.hasRoute<Profile>() == true
-        )
-    }
-}
+---
+
+## Migration from Navigation Compose
+
+| Navigation Compose | Navigation 3 |
+|-------------------|--------------|
+| `NavController` | Mutable back stack |
+| `NavHost` | `NavDisplay` |
+| `navigate()` | `backStack += Key` |
+| `popBackStack()` | `removeLast()` |
+| String routes | Serializable keys |
+| `composable()` | `when(key)` |
+| Navigation graph | State-driven destinations |
+
+---
+
+## Recommended Project Structure
+
+```
+navigation/
+
+    AppNavigation.kt
+
+    NavigationKeys.kt
+
+    NavigationDisplay.kt
+
+feature/
+
+    home/
+
+    profile/
+
+    settings/
 ```
 
 ---
@@ -398,25 +430,27 @@ class NavigationTest {
 
 ### DO
 
-- Use `@Serializable` routes for type safety
-- Pass only IDs/primitives as arguments
-- Use `popUpTo` with `launchSingleTop` for bottom navigation
-- Extract `NavHost` to a separate composable for testability
-- Use `SavedStateHandle.toRoute<T>()` in ViewModels
+- Use immutable serializable keys
+- Keep navigation state inside Compose
+- Pass IDs instead of complex objects
+- Scope ViewModels using entry decorators
+- Use `rememberSaveable` for state restoration
+- Model navigation as observable application state
 
 ### DON'T
 
-- Pass complex objects as navigation arguments
-- Create `NavController` inside `NavHost`
-- Navigate in `LaunchedEffect` without proper keys
-- Forget `FLAG_IMMUTABLE` for PendingIntents (Android 12+)
-- Use string-based routes (legacy pattern)
+- Use string routes
+- Pass repositories or ViewModels through navigation
+- Mutate navigation keys
+- Store business objects in the back stack
+- Recreate the back stack on recomposition
+- Mix Navigation Compose APIs with Navigation 3 APIs
 
 ---
 
 ## References
 
-- [Navigation with Compose](https://developer.android.com/develop/ui/compose/navigation)
-- [Type-Safe Navigation](https://developer.android.com/guide/navigation/design#compose)
-- [Pass Data Between Destinations](https://developer.android.com/guide/navigation/navigation-pass-data)
-- [Test Navigation](https://developer.android.com/guide/navigation/navigation-testing)
+- Android Navigation 3 documentation
+- Navigation 3 samples
+- Lifecycle ViewModel Navigation 3 documentation
+- Material 3 Adaptive Navigation documentation
