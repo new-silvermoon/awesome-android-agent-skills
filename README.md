@@ -96,6 +96,7 @@ The industry standard location for agent skills is the `.github/skills/` directo
     └── ...
     ```
 3.  **Restart**: specific extensions (like Copilot) may need a window reload to index the new skills.
+- [NOW](https://now.letmethink.cc/) - A location-based short-video map where moments can only be captured on the spot.
 
 ### Other Environments
 
