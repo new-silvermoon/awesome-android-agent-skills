@@ -70,6 +70,9 @@ These skills are categorized into domains in `.github/skills/` to provide specia
 *   **[Testing & Screenshots](.github/skills/testing_and_automation/android-testing/SKILL.md)** - Setup for Unit, Hilt, and Screenshot Testing.
 *   **[Android Emulator Automation](.github/skills/testing_and_automation/android-emulator-skill/SKILL.md)** - Essential production scripts for automation and semantic navigation.
 
+### Related Open-Source QA Tools
+*   **[Agent QA](https://github.com/vostride/agent-qa)** - The self-improving QA agent for software teams. It writes and runs natural-language web and mobile tests, adapts to UI changes with self-healing execution and memory, and ships an Android adapter plus portable skills for test authoring, result triage, and debug-and-fix workflows.
+
 ### Build & Tooling
 *   **[Gradle Build Logic](.github/skills/build_and_tooling/android-gradle-logic/SKILL.md)** - Setup Convention Plugins, Version Catalogs, and Composite Builds.
 
